@@ -1,3 +1,4 @@
+
 from django.utils import six
 from django.utils.translation import get_language
 from django.views.generic import TemplateView
@@ -11,8 +12,11 @@ from django.apps import apps
 from django.core.exceptions import PermissionDenied
 from rest_framework.renderers import JSONRenderer
 from core.api.serializers import GroupSerializer, Group
+from core.api.views import USERMEDIAHANDLER_CLASSES
 from core.models import GeneralSuiteData
+from core.utils.general import get_adminlte_skin_by_user
 from usersmanage.utils import get_users_for_object, get_user_model
+from usersmanage.configs import *
 from copy import deepcopy
 
 
@@ -31,7 +35,7 @@ class ClientView(TemplateView):
         self.project = Project.objects.get(pk=kwargs['project_id']) if 'project_id' in kwargs else \
             Project.objects.get(slug=kwargs['project_slug'])
 
-        grant_users = get_users_for_object(self.project, "view_project")
+        grant_users = get_users_for_object(self.project, "view_project", with_group_users=True)
 
         anonymous_user = get_user_model().get_anonymous()
 
@@ -99,7 +103,10 @@ class ClientView(TemplateView):
 
         # page title
         contextData['page_title'] = 'g3w-client | {}'.format(self.project.title)
+        
+        # choosen skin by user main role
 
+        contextData['skin_class'] = get_adminlte_skin_by_user(self.request.user)
         return contextData
         
     def get_template_names(self):
@@ -115,3 +122,21 @@ class ClientView(TemplateView):
                 return settings.CLIENT_DEFAULT
         return settings.CLIENT_DEFAULT
 
+
+def user_media_view(request, project_type, layer_id, file_name, *args, **kwargs):
+    """
+    View to return media checking user project permissions
+    :param request:
+    :return:
+    """
+
+    # get model by projet_type
+    Layer = apps.get_app_config(project_type).get_model('layer')
+    layer = Layer.objects.get(pk=layer_id)
+
+
+    # check permission
+    if request.user.has_perm('view_project', layer.project):
+        return USERMEDIAHANDLER_CLASSES[project_type](layer=layer, file_name=file_name).send_file()
+    else:
+        return HttpResponseForbidden()

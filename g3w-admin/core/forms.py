@@ -9,20 +9,12 @@ from django.contrib.auth.models import User
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Div, Submit, HTML, Button, Row, Field
 from crispy_forms.bootstrap import AppendedText, PrependedText
+from guardian.shortcuts import get_objects_for_user
 from .utils.forms import crispyBoxMacroGroups
-from usersmanage.utils import get_fields_by_user, crispyBoxACL, userHasGroups
-from usersmanage.forms import G3WACLForm
+from usersmanage.utils import get_fields_by_user, crispyBoxACL, userHasGroups, get_users_for_object
+from usersmanage.forms import G3WACLForm, UsersChoiceField
 from core.mixins.forms import *
 from usersmanage.configs import *
-
-
-
-class ExampleForm(FileFormMixin,Form):
-    input_file = UploadedFileField()
-
-
-class ExampleAjaxForm(Form):
-    testo = CharField(required=True)
 
 
 class GroupForm(FileFormMixin, G3WFormMixin, G3WRequestFormMixin, G3WACLForm, ModelForm):
@@ -31,6 +23,12 @@ class GroupForm(FileFormMixin, G3WFormMixin, G3WRequestFormMixin, G3WACLForm, Mo
 
     def __init__(self, *args, **kwargs):
         super(GroupForm, self).__init__(*args, **kwargs)
+
+        # add MacroGroups by users
+        self.fields['macrogroups'].queryset = get_objects_for_user(self.request.user, 'view_macrogroup',
+                                                                        MacroGroup)
+
+
         self.helper = FormHelper(self)
         self.helper.form_tag = False
         self.helper.layout = Layout(
@@ -307,8 +305,16 @@ class GeneralSuiteDataForm(FileFormMixin, ModelForm):
 class MacroGroupForm(FileFormMixin, G3WFormMixin, ModelForm):
     """MacroGroup form."""
     logo_img = UploadedFileField()
+    initial_editor_users = []
+    editor_users = UsersChoiceField(label=_('Editor users'),
+                                    queryset=User.objects.filter(groups__name__in=[G3W_EDITOR1])
+                                    .order_by('last_name'), required=False)
 
     def __init__(self, *args, **kwargs):
+
+        if kwargs['initial'].has_key('editor_users'):
+            self.initial_editor_users = kwargs['initial']['editor_users']
+
         super(MacroGroupForm, self).__init__(*args, **kwargs)
         self.helper = FormHelper(self)
         self.helper.form_tag = False
@@ -317,11 +323,36 @@ class MacroGroupForm(FileFormMixin, G3WFormMixin, ModelForm):
                                 Div(
                                     Div(
                                         Div(
+                                            HTML("<h3 class='box-title'><i class='fa fa-user'></i> {}</h3>".format(
+                                                _('ACL Users'))),
+                                            Div(
+                                                HTML(
+                                                    "<button class='btn btn-box-tool' data-widget='collapse'><i class='fa fa-minus'></i></button>"),
+                                                css_class='box-tools',
+                                            ),
+                                            css_class='box-header with-border'
+                                        ),
+                                        Div(
+                                            Field('editor_users',
+                                                  **{'css_class': 'select2 col-md-12', 'multiple': 'multiple',
+                                                     'style': 'width:100%;'}),
+                                            css_class='box-body'
+                                        ),
+                                        css_class='box box-solid {} {}'.format('bg-purple',
+                                                                       self.checkEmptyInitialsData('editor_users'))
+                                    ),
+                                    css_class='{}'.format('col-md-12')
+                                ),
+
+                                Div(
+                                    Div(
+                                        Div(
                                             HTML("<h3 class='box-title'><i class='fa fa-file'></i> {}</h3>".format(_('General data'))),
                                             css_class='box-header with-border'
                                         ),
                                         Div(
                                             'title',
+                                            'use_title_logo_client',
                                             Field('description', css_class='wys5', style="width:100%;"),
                                             'logo_img',
                                             HTML(
@@ -343,4 +374,13 @@ class MacroGroupForm(FileFormMixin, G3WFormMixin, ModelForm):
         model = MacroGroup
         fields = '__all__'
 
+    def save(self, commit=True):
+        instance = super(MacroGroupForm, self).save(commit)
+
+        # add or remove permissions to editor1
+        current_editors = [o.id for o in self.cleaned_data['editor_users']]
+        self.instance.remove_permissions_to_editors(list(set(self.initial_editor_users) - set(current_editors)))
+        self.instance.add_permissions_to_editors(list(set(current_editors) - set(self.initial_editor_users)))
+
+        return instance
 

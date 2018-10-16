@@ -3,13 +3,19 @@ from django import template
 from django.contrib.auth.models import Group
 from guardian.utils import get_user_model
 from guardian.exceptions import NotUserNorGroup
-from usersmanage.utils import get_perms_by_user_backend
+from usersmanage.utils import get_perms_by_user_backend, get_user_groups, get_roles, get_objects_for_user, User
 
 register = template.Library()
 
 
 @register.filter(name='has_group') 
-def has_group(user, group_name): 
+def has_group(user, group_name):
+    """
+    Check if user object has a group/role
+    :param user:
+    :param group_name:
+    :return:
+    """
     group = Group.objects.get(name=group_name) 
     return True if group in user.groups.all() else False
 
@@ -59,3 +65,36 @@ def get_user_perms_by_userbackend(parser, token):
                                            "argument should be in quotes")
     context_var = context_var[1:-1]
     return ObjectPermissionsNode(for_whom, obj, context_var)
+
+
+@register.simple_tag
+def get_groups4user(user):
+    """
+    Get user groups
+    :param user:
+    :return:
+    """
+    return get_user_groups(user)
+
+
+@register.simple_tag
+def get_roles4user(user):
+    """
+    Get user main roles
+    :param user:
+    :return:
+    """
+    return get_roles(user)
+
+
+@register.simple_tag
+def get_users4groups(current_user, users_group):
+    """
+    Get users for users_groups filter by own users
+    :param user:
+    :return:
+    """
+
+    return list(set(users_group.user_set.all()).intersection(
+        set(get_objects_for_user(current_user, 'auth.change_user', User).order_by('username'))))
+

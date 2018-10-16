@@ -4,6 +4,7 @@ from core.api.base.views import BaseVectorOnModelApiView, IntersectsBBoxFilter, 
 from core.api.base.vector import MetadataVectorLayer
 from core.utils.structure import mapLayerAttributesFromModel
 from core.utils.models import create_geomodel_from_qdjango_layer, get_geometry_column
+from core.utils.vector import BaseUserMediaHandler
 from core.api.permissions import ProjectPermission
 from core.api.filters import DatatablesFilterBackend
 from .utils.edittype import MAPPING_EDITTYPE_QGISEDITTYPE
@@ -169,13 +170,20 @@ class LayerVectorView(QGISLayerVectorViewMixin, BaseVectorOnModelApiView):
 
         fields = super(LayerVectorView, self).get_forms()
 
-        if hasattr(self.layer, 'edittypes') and self.layer.edittypes:
-
-            fields = {
-                self.layer_name: {
-                    'fields': {}
-                }
+        fields = {
+            self.layer_name: {
+                'fields': {}
             }
+        }
+
+        # add label
+        if self.layer:
+            fields_layer = self.layer.database_columns_by_name()
+            for field, data in fields_layer.items():
+                fields[self.layer_name]['fields'][field] = {'label': data['label']}
+
+        # add widgets
+        if hasattr(self.layer, 'edittypes') and self.layer.edittypes:
 
             # reduild edittypes
             edittypes = eval(self.layer.edittypes)
@@ -186,7 +194,10 @@ class LayerVectorView(QGISLayerVectorViewMixin, BaseVectorOnModelApiView):
 
                     # instance of QgisEditType
                     qet = MAPPING_EDITTYPE_QGISEDITTYPE[data['widgetv2type']](**data)
-                    fields[self.layer_name]['fields'][field] = qet.input_form
+                    if field not in fields[self.layer_name]['fields']:
+                        fields[self.layer_name]['fields'][field] = qet.input_form
+                    else:
+                        fields[self.layer_name]['fields'][field].update(qet.input_form)
 
         return fields
 
@@ -252,3 +263,11 @@ class LayerVectorView(QGISLayerVectorViewMixin, BaseVectorOnModelApiView):
         self.results.update({'data': res})
 
 
+
+
+
+class UserMediaHandler(BaseUserMediaHandler):
+    """
+    Class to handle input/output user media file uploaded in editing mode
+    """
+    pass

@@ -22,6 +22,8 @@ def update_serializer_data(serializer_data, data):
     if data['operation_type'] == 'update':
         to_update = serializer_data[data['update_path']] if 'update_path' in data else serializer_data
         to_update.update(data['values'])
+    elif data['operation_type'] == 'replace':
+        serializer_data[data['replace_path']] = data['values']
     elif data['operation_type'] == 'append':
         if 'append_path' in data:
             if isinstance(data['append_path'], list):
@@ -74,7 +76,15 @@ class GroupSerializer(G3WRequestSerializer, serializers.ModelSerializer):
         ret = super(GroupSerializer, self).to_representation(instance)
 
         # add header_logo
-        ret['header_logo_img'] = instance.header_logo_img.name
+        # before check macrogroups number anche if is equal to 1 use it
+        try:
+            macrogroup = instance.macrogroups.get(use_title_logo_client=True)
+            ret['header_logo_img'] = macrogroup.logo_img.name
+
+            # change title
+            ret['name'] = macrogroup.title
+        except:
+            ret['header_logo_img'] = instance.header_logo_img.name
 
         # add crs:
         ret['crs'] = int(str(self.instance.srid.srid))
