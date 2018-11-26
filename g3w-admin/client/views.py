@@ -4,7 +4,7 @@ from django.utils.translation import get_language
 from django.views.generic import TemplateView
 from django.template import loader
 from django.shortcuts import get_object_or_404
-from django.http import Http404, HttpResponseForbidden
+from django.http import Http404, HttpResponseForbidden, HttpResponse
 from django.conf import settings
 from django.core.urlresolvers import reverse
 from django.contrib.auth.views import redirect_to_login
@@ -91,21 +91,22 @@ class ClientView(TemplateView):
         # add baseUrl property
         contextData['group_config'] = 'var initConfig ={{ "staticurl":"{}", "client":"{}", ' \
                                       '"mediaurl":"{}", "user":{}, "group":{}, "baseurl":"{}", "vectorurl":"{}", ' \
-                                      '"main_map_title":{}, '"g3wsuite_logo_img"': "{}" {} }}'.\
+                                      '"main_map_title":{}, '"g3wsuite_logo_img"': "{}", '"credits"': "{}"' \
+                                      ' {} }}'.\
             format(settings.STATIC_URL, "{}/".format(settings.CLIENT_DEFAULT), settings.MEDIA_URL, user_data,
                     serializedGroup, baseurl, settings.VECTOR_URL,
                    '"' + generaldata.main_map_title + '"' if generaldata.main_map_title else 'null',
-                   settings.CLIENT_G3WSUITE_LOGO, frontendurl)
+                   settings.CLIENT_G3WSUITE_LOGO, reverse('client-credits'), frontendurl)
 
         # project by type(app)
         if not '{}-{}'.format(kwargs['project_type'], self.project.pk) in groupSerializer.projects.keys():
             raise Http404('No project type and/or project id present in group')
 
         # page title
-        contextData['page_title'] = 'g3w-client | {}'.format(self.project.title)
-        
-        # choosen skin by user main role
+        contextData['page_title'] = '{} | {}'.format(
+            getattr(settings, 'G3WSUITE_CUSTOM_TITLE', 'g3w - client'), self.project.title)
 
+        # choosen skin by user main role
         contextData['skin_class'] = get_adminlte_skin_by_user(self.request.user)
         return contextData
         
@@ -140,3 +141,11 @@ def user_media_view(request, project_type, layer_id, file_name, *args, **kwargs)
         return USERMEDIAHANDLER_CLASSES[project_type](layer=layer, file_name=file_name).send_file()
     else:
         return HttpResponseForbidden()
+
+
+def credits(request, * args, **kwargs):
+    """
+    Return custom credits from core
+    """
+
+    return HttpResponse(GeneralSuiteData.objects.get().credits)

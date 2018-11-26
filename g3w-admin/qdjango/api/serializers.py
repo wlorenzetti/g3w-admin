@@ -1,6 +1,7 @@
 from django.http.request import QueryDict
 from django.conf import settings
 from django.core.cache import caches
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from rest_framework_gis import serializers as geo_serializers
 from rest_framework.fields import empty
@@ -151,6 +152,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         ret['no_legend'] = []
         layers = {l.qgs_layer_id: l for l in instance.layer_set.all()}
 
+        # check fo title
+        if hasattr(settings, 'G3W_CLIENT_SEARCH_TITLE'):
+            ret['search_title'] = _(settings.G3W_CLIENT_SEARCH_TITLE)
+
         # for client map like multilayer
         meta_layer = QdjangoMetaLayer()
         to_remove_from_layerstree = []
@@ -296,8 +301,8 @@ class LayerSerializer(serializers.ModelSerializer):
         # add editable capability by signal
         # ----------------------------------
 
-        if capabilities == 0:
-            capabilities = None
+        #if capabilities == 0:
+        #    capabilities = None
 
         return capabilities
 
