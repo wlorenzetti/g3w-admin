@@ -15,6 +15,7 @@ from usersmanage.utils import setPermissionUserObject, getUserGroups, get_users_
 from usersmanage.configs import *
 from core.configs import *
 from core.receivers import check_overviewmap_project
+from core.utils import unicode2ascii
 import os
 
 
@@ -160,6 +161,28 @@ class Project(G3WProjectMixins, G3WACLModelMixins, TimeStampedModel):
             layers = self.layer_set.all()
             for layer in layers:
                 getattr(layer, layerAction)(groups_id)
+
+
+    def tree(self):
+
+        def readLeaf(layer, layers):
+            if 'nodes' in layer:
+                children = []
+                for node in layer['nodes']:
+                    children.append(readLeaf(node, layers))
+
+                return [u'g_{}'.format(layer['name']), children]
+            else:
+                return [layers[layer['id']][0], layers[layer['id']][1]]
+
+        layers = self.layer_set.values_list('id', 'name', 'qgs_layer_id')
+        _layers = {l[2]: l for l in layers}
+
+        layers_tree = []
+        for l in eval(self.layers_tree):
+            layers_tree.append(readLeaf(l, _layers))
+
+        return layers_tree
 
     def __getattr__(self, attr):
         if attr == 'viewers':

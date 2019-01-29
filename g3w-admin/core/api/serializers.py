@@ -8,7 +8,7 @@ from rest_framework import serializers
 from rest_framework.fields import empty
 from rest_framework_gis.fields import GeometryField
 from shapely import wkt, geometry
-from core.models import Group
+from core.models import Group, BaseLayer
 from core.signals import initconfig_plugin_start
 from core.mixins.api.serializers import G3WRequestSerializer
 from copy import copy
@@ -49,11 +49,12 @@ class BaseLayerSerializer(serializers.ModelSerializer):
         return ret
 
     class Meta:
-        model = Group
+        model = BaseLayer
         fields = (
             'id',
             'name',
             'title',
+            'icon'
         )
 
 
@@ -154,6 +155,24 @@ class GroupSerializer(G3WRequestSerializer, serializers.ModelSerializer):
 
         # powerd_by
         ret['powered_by'] = settings.G3WSUITE_POWERD_BY
+
+        # header customs links
+        header_custom_links = getattr(settings, 'G3W_CLIENT_HEADER_CUSTOM_LINKS', None)
+        if header_custom_links:
+            ret['header_custom_links'] = header_custom_links
+
+        # custom layout
+        ret['layout'] = {}
+
+        # add legend settings if set to layout
+        layout_legend = getattr(settings, 'G3W_CLIENT_LEGEND', None)
+        if layout_legend:
+            ret['layout']['legend'] = layout_legend
+
+        # add legend settings if set to layout
+        layout_right_panel = getattr(settings, 'G3W_CLIENT_RIGHT_PANEL', None)
+        if layout_right_panel:
+            ret['layout']['rightpanel'] = layout_right_panel
 
         return ret
 

@@ -1,6 +1,8 @@
 from django.db import connections
+from django.http import HttpResponse
 from rest_framework.filters import OrderingFilter
-from core.api.base.views import BaseVectorOnModelApiView, IntersectsBBoxFilter, MODE_DATA, MODE_CONFIG, APIException
+from core.api.base.views import BaseVectorOnModelApiView, IntersectsBBoxFilter, MODE_DATA, MODE_CONFIG, MODE_SHP, \
+    APIException
 from core.api.base.vector import MetadataVectorLayer
 from core.utils.structure import mapLayerAttributesFromModel
 from core.utils.models import create_geomodel_from_qdjango_layer, get_geometry_column
@@ -10,12 +12,20 @@ from core.api.filters import DatatablesFilterBackend, SuggestFilterBackend
 from .utils.edittype import MAPPING_EDITTYPE_QGISEDITTYPE
 from .utils.data import QGIS_LAYER_TYPE_NO_GEOM
 from .api.serializers import QGISLayerSerializer, QGISGeoLayerSerializer
+from .utils.structure import datasource2dict
 from .models import Layer
+import subprocess
+import zipfile
+import StringIO
+import os
+import shutil
 
 MODE_WIDGET = 'widget'
 
 
 class QGISLayerVectorViewMixin(object):
+
+    _layer_model = Layer
 
     def set_reprojecting_status(self):
         """
@@ -34,13 +44,16 @@ class QGISLayerVectorViewMixin(object):
         self.bbox_filter = IntersectsBBoxFilter() if self.metadata_layer.geometry_type != QGIS_LAYER_TYPE_NO_GEOM \
             else None
 
+
+
+
     def get_layer_by_params(self, params):
 
         layer_id = params['layer_name']
         project_id = params['project_id']
 
         # get layer object from qdjango model layer
-        return Layer.objects.get(project_id=project_id, qgs_layer_id=layer_id)
+        return self._layer_model.objects.get(project_id=project_id, qgs_layer_id=layer_id)
 
     def get_geoserializer_kwargs(self):
 
@@ -55,6 +68,7 @@ class QGISLayerVectorViewMixin(object):
 
     def set_relations(self):
 
+
         # get relations on project
         self.relations = {} if not self.layer.project.relations else \
             {r['id']: r for r in eval(self.layer.project.relations)}
@@ -63,7 +77,7 @@ class QGISLayerVectorViewMixin(object):
         if self.layer.vectorjoins:
             joins = eval(self.layer.vectorjoins)
             for n, join in enumerate(joins):
-                if Layer.objects.get(qgs_layer_id=join['joinLayerId'], project=self.layer.project).layer_type \
+                if self._layer_model.objects.get(qgs_layer_id=join['joinLayerId'], project=self.layer.project).layer_type \
                         in (('postgres', 'spatialite')):
                     name = '{}_vectorjoin_{}'.format(self.layer.qgs_layer_id, n)
                     self.relations[name] = {
@@ -87,7 +101,7 @@ class QGISLayerVectorViewMixin(object):
             # check if in relation there is referencedLayer == self layer
             if relation['referencedLayer'] == self.layer.qgs_layer_id:
                 # get relation layer object
-                relation_layer = Layer.objects.get(qgs_layer_id=relation['referencingLayer'],
+                relation_layer = self._layer_model.objects.get(qgs_layer_id=relation['referencingLayer'],
                                                    project=self.layer.project)
 
                 geomodel, database_to_use, geometrytype = create_geomodel_from_qdjango_layer(relation_layer)
@@ -147,15 +161,17 @@ class LayerVectorView(QGISLayerVectorViewMixin, BaseVectorOnModelApiView):
     filter_backends = (OrderingFilter, DatatablesFilterBackend, SuggestFilterBackend)
     ordering_fields = '__all__'
 
-
     # Modes call avilable
     modes_call_available = [
         MODE_CONFIG,
         MODE_DATA,
-        MODE_WIDGET
+        MODE_WIDGET,
+        MODE_SHP
     ]
 
     mapping_layer_attributes_function = mapLayerAttributesFromModel
+
+    shp_extentions = ('.shp', '.shx', '.dbf', '.prj')
 
     def initial(self, request, *args, **kwargs):
 
@@ -263,8 +279,78 @@ class LayerVectorView(QGISLayerVectorViewMixin, BaseVectorOnModelApiView):
 
         self.results.update({'data': res})
 
+    def response_shp_mode(self, request):
+        """
+        Download Shapefile of data
+        :param request: Http Django request object
+        :return: http response with attached file
+        """
+        #ogr2ogr -f "ESRI Shapefile" qds_cnt.shp PG:"host=localhost user=postgres dbname=gisdb password=password" - sql "SELECT sp_count, geom FROM grid50_rsa WHERE province = 'Gauteng'"
 
+        tmp_dir = "/tmp/g3w-suite/{}/".format(request.session.session_key)
 
+        if not os.path.isdir(tmp_dir):
+            os.makedirs(tmp_dir)
+
+        datasource = datasource2dict(self.layer.datasource)
+        table = datasource['table'].replace('"', '')
+        if self.layer.layer_type in ['sqlite', 'spatialite']:
+            ogr_conn = datasource['dbname']
+            filename = table
+
+        if self.layer.layer_type == 'postgres':
+            ogr_conn = "PG:host={0} user={1} dbname={2} password={3}".format(
+                datasource['host'],
+                datasource['user'],
+                datasource['dbname'],
+                datasource['password'],
+            )
+            filename = table.split('.')[1]
+
+        command = [
+            "ogr2ogr",
+            "-f",
+            "ESRI Shapefile",
+            "{}{}{}".format(tmp_dir, filename, self.shp_extentions[0]),
+            ogr_conn,
+            table
+        ]
+
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, error = process.communicate()
+        if error and not error.startswith('Warning'):
+            raise APIException(error)
+
+        # buil on memeory zip file
+        # from https://stackoverflow.com/a/12951557
+
+        filenames = ["{}{}".format(filename, ftype) for ftype in self.shp_extentions]
+
+        zip_filename = "{}.zip".format(filename)
+
+        # Open StringIO to grab in-memory ZIP contents
+        s = StringIO.StringIO()
+
+        # The zip compressor
+        zf = zipfile.ZipFile(s, "w")
+
+        for fpath in filenames:
+
+            # Add file, at correct path
+            ftoadd = '{}{}'.format(tmp_dir, fpath)
+            if os.path.exists(ftoadd):
+                zf.write(ftoadd, fpath)
+
+        # Must close zip for all contents to be written
+        zf.close()
+        #map(lambda f: os.remove('{}{}'.format(tmp_dir, f)), filenames)
+        shutil.rmtree(tmp_dir)
+
+        # Grab ZIP file from in-memory, make response with correct MIME-type
+        response = HttpResponse(s.getvalue(), content_type="application/x-zip-compressed")
+        response['Content-Disposition'] = 'attachment; filename=%s' % zip_filename
+        response.set_cookie('fileDownload', 'true')
+        return response
 
 
 class UserMediaHandler(BaseUserMediaHandler):

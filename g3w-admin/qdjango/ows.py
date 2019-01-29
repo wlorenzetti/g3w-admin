@@ -132,8 +132,15 @@ class OWSRequestHandler(OWSRequestHandlerBase):
             result_data = result.data
 
             if ows_request == 'GETCAPABILITIES':
+                to_replace = None
+                try:
+                    to_replace = getattr(settings, 'QDJANGO_REGEX_GETCAPABILITIES')
+                except:
+                    pass
 
-                to_replace = settings.QDJANGO_SERVER_URL + r'\?map=[^\'" > &]+(?=&)'
+                if not to_replace:
+                    to_replace = settings.QDJANGO_SERVER_URL + r'\?map=[^\'" > &]+(?=&)'
+                    #to_replace = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+\?map=[^\'" > &]+(?=&)'
 
                 # url to replace
                 wms_url = '{}://{}{}'.format(
@@ -142,6 +149,7 @@ class OWSRequestHandler(OWSRequestHandlerBase):
                     request.path
                 )
                 result_data = re.sub(to_replace, wms_url, result_data)
+                result_data = re.sub('&amp;&amp;', '?', result_data)
 
 
             # If we get a redirect, let's add a useful message.
@@ -177,6 +185,15 @@ class OWSRequestHandler(OWSRequestHandlerBase):
     def doRequest(self):
 
         q = self.request.GET.copy()
+
+        # rebuild q keys upper()
+
+        for k in q.keys():
+            ku = k.upper()
+            if ku != k:
+                q[ku] = q[k]
+                del q[k]
+
         q['map'] = self._projectInstance.qgis_file.file.name
         return self.baseDoRequest(q, self.request)
 
