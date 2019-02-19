@@ -42,7 +42,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
         if 'qdjango' in settings.CACHES:
             cache = caches['qdjango']
-            cache_key = 'qdjango_prjsettings_{}'.format(instance.pk)
+            cache_key = settings.QDJANGO_PRJ_CACHE_KEY.format(instance.pk)
 
             # try to get from cache
             cached_response = cache.get(cache_key)
@@ -270,6 +270,7 @@ class LayerSerializer(serializers.ModelSerializer):
             'servertype',
             'vectorjoins',
             'exclude_from_legend',
+            'download',
             'editor_form_structure'
         )
 
