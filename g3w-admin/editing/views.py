@@ -582,7 +582,7 @@ class G3WAPIInfoView(G3WAPIView):
 
     info_layers = dict()
 
-    def _build_fitler_data(self, filter_data):
+    def _build_filter_data(self, filter_data):
         """
         Build data for query roaw from WMS getinfo call
         :param filter_data:
@@ -616,7 +616,7 @@ class G3WAPIInfoView(G3WAPIView):
             filter_data = request.query_params['FILTER'].split(':')[1]
             featuresLayer = None
 
-            filter_data = self._build_fitler_data(filter_data)
+            filter_data = self._build_filter_data(filter_data)
 
             #apply raw query to model
             query_raw = 'select * from {} where {}'.format(data_layer['model']._meta.db_table, filter_data)
