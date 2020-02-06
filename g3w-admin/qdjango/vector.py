@@ -27,7 +27,7 @@ from .models import Layer
 from .utils.data import QGIS_LAYER_TYPE_NO_GEOM
 from .utils.edittype import MAPPING_EDITTYPE_QGISEDITTYPE
 from .utils.structure import datasource2dict
-from core.utils.qgisapi import *
+from core.utils.qgisapi import get_qgis_layer
 from qgis.core import QgsVectorFileWriter
 
 MODE_WIDGET = 'widget'
@@ -54,21 +54,6 @@ class QGISLayerVectorViewMixin(object):
         self.bbox_filter = IntersectsBBoxFilter() if self.metadata_layer.geometry_type != QGIS_LAYER_TYPE_NO_GEOM \
             else None
 
-    '''
-    def set_sql_filter(self):
-        """
-        Set filter  set general sql filter
-        """
-
-        # check if datasource has sql key
-        ds = datasource2dict(self.layer.datasource)
-
-        if 'sql' in ds and ds['sql']:
-            self.sql_filter = RawSQL(ds['sql'], ())
-        else:
-            self.sql_filter = None
-    '''
-
     def get_layer_by_params(self, params):
 
         layer_id = params['layer_name']
@@ -88,7 +73,7 @@ class QGISLayerVectorViewMixin(object):
         return kwargs
 
     def set_relations(self):
-
+        """Find relations and set metadata"""
 
         # get relations on project
         self.relations = {} if not self.layer.project.relations else \

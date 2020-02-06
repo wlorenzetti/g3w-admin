@@ -69,6 +69,7 @@ class CoreApiTest(APITestCase):
     @classmethod
     def tearDownClass(cls):
         cls.user.delete()
+        super().tearDownClass()
 
     def setUp(self):
         self.client = APIClient()
@@ -163,9 +164,9 @@ class CoreApiTest(APITestCase):
         self.assertEqual(resp["vector"]["format"], "GeoJSON")
         self.assertIsNone(resp["vector"]["fields"])
         self.assertEqual(resp["vector"]["geometrytype"], "Point")
-        self.assertEqual(resp["vector"]["pk"], "pkuid")
+        #self.assertEqual(resp["vector"]["pk"], "pkuid")
         self.assertEqual(resp["vector"]["data"]["type"], "FeatureCollection")
-        self.assertEqual(resp["vector"]["data"]["features"], [{"id": 2, "type": "Feature", "geometry": {"type": "Point", "coordinates": [10.685246675074524, 44.35096846172921]}, "properties": {"name": "another point"}}])
+        self.assertEqual(resp["vector"]["data"]["features"], [{"id": 2, "type": "Feature", "geometry": {"type": "Point", "coordinates": [10.685247, 44.350968]}, "properties": {"name": "another point", 'pkuid': 2}}])
         self.assertTrue(resp["result"])
         self.assertIsNone(resp["featurelocks"])
 
