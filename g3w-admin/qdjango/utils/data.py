@@ -419,7 +419,7 @@ class QgisProjectLayer(XmlData):
 
     def _getDataExcludeAttributesWMS(self):
         """
-        Get attribute to exlude from WMS info and relations
+        Get attribute to exclude from WMS info and relations
         """
 
         excluded_columns = []
@@ -433,7 +433,7 @@ class QgisProjectLayer(XmlData):
 
     def _getDataExcludeAttributesWFS(self):
         """
-        Get attribute to exlude from WMS info and relations
+        Get attribute to exclude from WMS info and relations
         """
 
         excluded_columns = []

@@ -193,8 +193,8 @@ class BaseEditingOnModelApiView(G3WAPIView):
 
             # add forms data if exist
             kwargs = {'fields': forms[layer_name]['fields']} if forms and forms.get(layer_name) else {}
-            if self.editing_layers[layer_name].get('fields_to_exlude'):
-                kwargs['exlude'] = self.editing_layers[layer_name]['fields_to_exlude']
+            if self.editing_layers[layer_name].get('fields_to_exclude'):
+                kwargs['exclude'] = self.editing_layers[layer_name]['fields_to_exclude']
             if self.editing_layers[layer_name].get('order'):
                 kwargs['order'] = self.editing_layers[layer_name]['order']
 
