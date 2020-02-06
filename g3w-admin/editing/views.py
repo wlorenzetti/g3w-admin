@@ -25,7 +25,7 @@ from core.utils.decorators import project_type_permission_required
 from core.utils import file_path_mime
 from editing.utils import LayerLock
 from editing.utils.data import get_relations_data_by_fid
-from core.utils.structure import mapLayerAttributes, mapLayerAttributesFromModel
+from core.utils.structure import mapLayerAttributes, mapLayerAttributesFromQgisLayer
 from core.api.base.views import MODE_CONFIG, BaseVectorOnModelApiView
 from usersmanage.utils import get_users_for_object, setPermissionUserObject, userHasGroups, get_viewers_for_object, \
     get_user_groups_for_object
@@ -198,8 +198,8 @@ class BaseEditingOnModelApiView(G3WAPIView):
             if self.editing_layers[layer_name].get('order'):
                 kwargs['order'] = self.editing_layers[layer_name]['order']
 
-            if self.map_layer_attributes == 'mapLayerAttributesFromModel':
-                fields = mapLayerAttributesFromModel(
+            if self.map_layer_attributes == 'mapLayerAttributesFromQgisLayer':
+                fields = mapLayerAttributesFromQgisLayer(
                     self.editing_layers[layer_name]['model'],
                     **kwargs
                 ).values()
@@ -479,7 +479,7 @@ class QGISLayerEditingView(BaseEditingOnModelApiView):
 
     app_name = 'editing'
 
-    map_layer_attributes = 'mapLayerAttributesFromModel'
+    map_layer_attributes = 'mapLayerAttributesFromQgisLayer'
 
     permission_classes = (
         QGISLayerEditingPermission,
